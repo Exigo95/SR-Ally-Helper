@@ -19,7 +19,8 @@
         logeKraft: 6, karma: 80,
         ritualGelernt: true
       },
-      ally: { name: '', konzept: '', ebene: '', force: 4, notizen: '' },
+      ally: { name: '', konzept: '', ebene: '', force: 4, notizen: '', type: '', applyMods: true,
+              customMods: { K: 0, G: 0, R: 0, S: 0, W: 0, L: 0, I: 0, C: 0, ini: 0 } },
       form: { type: 'materialization', baseForm: '', extraForms: [], vessel: '' },
       powers: [],          // { id, detail }
       skills: [],          // { name }
@@ -34,8 +35,18 @@
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return null;
-      return merge(defaultState(), JSON.parse(raw));
+      return migrate(merge(defaultState(), JSON.parse(raw)));
     } catch (e) { return null; }
+  }
+  // Ältere Speicherstände auf neue Bezeichnungen umstellen
+  function migrate(st) {
+    const renameSpirit = { guidance: 'advisor', task: 'helper' };
+    const renamePower = { shadow_cloak: 'shadow' };
+    for (const k of Object.keys(st.mage.spirits)) if (renameSpirit[st.mage.spirits[k]]) st.mage.spirits[k] = renameSpirit[st.mage.spirits[k]];
+    st.powers = st.powers.map(p => ({ id: renamePower[p.id] || p.id, detail: p.detail || '' })).filter(p => SR.POWERS[p.id]);
+    if (st.ally.type && !SR.SPIRITS[st.ally.type]) st.ally.type = '';
+    if (!SR.TRADITIONS[st.mage.tradition]) st.mage.tradition = 'custom';
+    return st;
   }
   function persist() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorieren */ }
@@ -87,6 +98,19 @@
     return pool;
   }
 
+  function tradTypes() { return [...new Set(Object.values(state.mage.spirits))].filter(t => SR.SPIRITS[t]); }
+  function allyType() {
+    const t = tradTypes();
+    if (!t.includes(state.ally.type)) state.ally.type = t[0] || 'fire';
+    return state.ally.type;
+  }
+  function mods() {
+    const z = { K: 0, G: 0, R: 0, S: 0, W: 0, L: 0, I: 0, C: 0, ini: 0 };
+    if (!state.ally.applyMods) return z;
+    const sp = SR.SPIRITS[allyType()];
+    return Object.assign(z, sp && sp.mods ? sp.mods : state.ally.customMods);
+  }
+
   function hasSkill(name) { return state.skills.some(s => s.name.toLowerCase() === name.toLowerCase()); }
 
   function calc() {
@@ -115,7 +139,7 @@
     if (f > maxForce()) out.push({ step: 'ally', level: 'err', text: `Kraft ${f} übersteigt das Doppelte der Magie (${maxForce()}).` });
     else if (f > m.magie) out.push({ step: 'ally', level: 'warn', text: `Kraft ${f} > Magie ${m.magie}: Der Entzug beim Herbeirufen und Binden ist körperlich.` });
     if (c.total > m.karma) out.push({ step: 'summary', level: 'err', text: `Es fehlen ${c.total - m.karma} Karma. Kann das Karma nicht bezahlt werden, scheitert das Ritual.` });
-    if (state.form.type === 'inhabitation' && !state.form.vessel.trim()) out.push({ step: 'form', level: 'warn', text: 'Für Innewohnen muss vor dem Ritual ein vorbereitetes Gefäß existieren – bitte beschreiben.' });
+    if (state.form.type === 'inhabitation' && !state.form.vessel.trim()) out.push({ step: 'form', level: 'warn', text: 'Für Bewohnung muss vor dem Ritual ein vorbereitetes Gefäß existieren – bitte beschreiben.' });
     if (state.form.type === 'materialization' && !state.form.baseForm.trim()) out.push({ step: 'form', level: 'info', text: 'Beschreibe die Grundgestalt des Verbündeten.' });
     for (const p of state.powers) {
       const def = SR.POWERS[p.id]; if (!def) continue;
@@ -128,6 +152,11 @@
     if (state.spells.length && !hasSkill('Spruchzauberei')) out.push({ step: 'skills', level: 'warn', text: 'Der Verbündete kennt Zauber, hat aber keine Fertigkeit „Spruchzauberei“.' });
     if (state.spells.some(s => !s.known)) out.push({ step: 'spells', level: 'info', text: 'Für Zauber, die der Beschwörer nicht kennt, werden trotzdem Zauberformeln benötigt.' });
     if (hasSkill('Fliegen')) out.push({ step: 'skills', level: 'info', text: 'Fliegen ist nur erlaubt, wenn es zur Gestalt des Verbündeten passt.' });
+    if (SR.TRADITIONS[m.tradition].possession && state.form.type !== 'possession') out.push({ step: 'form', level: 'info', text: `${SR.TRADITIONS[m.tradition].de} ist eine Besessenheitstradition – die Geister dieser Tradition besitzen Gefäße statt zu materialisieren. Bitte im Buch prüfen und ggf. „Besessenheit“ wählen.` });
+    const spT = SR.SPIRITS[allyType()];
+    if (spT && !spT.verified) out.push({ step: 'ally', level: 'info', text: `${spT.de}: Attribute und Kräfte sind noch nicht aus dem Buch geprüft – bitte mit dem Grundregelwerk abgleichen (Modifikatoren kannst du selbst eintragen).` });
+    const unv = tradTypes().filter(t => !SR.SPIRITS[t].verified);
+    if (unv.length) out.push({ step: 'mage', level: 'info', text: `Noch nicht aus dem Buch geprüft: ${unv.map(t => SR.SPIRITS[t].de).join(', ')}.` });
     if (!state.ally.name.trim()) out.push({ step: 'ally', level: 'info', text: 'Der Verbündete hat noch keinen Namen.' });
     if (!state.ally.ebene.trim()) out.push({ step: 'ally', level: 'info', text: 'Die Heimat-Metaebene wird in der Formel festgelegt – bitte angeben.' });
     return out;
@@ -185,7 +214,7 @@
 
   views.mage = () => {
     const m = state.mage;
-    const tradOpts = Object.entries(SR.TRADITIONS).map(([k, t]) => `<option value="${k}" ${m.tradition === k ? 'selected' : ''}>${t.de}${t.src !== '—' ? ` (${t.src})` : ''}</option>`).join('');
+    const tradOpts = Object.entries(SR.TRADITIONS).map(([k, t]) => `<option value="${k}" ${m.tradition === k ? 'selected' : ''}>${t.de}${t.src !== '—' ? ` (${t.src})` : ''}${t.verified === false ? ' – ungeprüft' : ''}</option>`).join('');
     const spiritOpts = (sel) => Object.entries(SR.SPIRITS).map(([k, s]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${s.de}</option>`).join('');
     return head('Schritt 1', 'Der Beschwörer', 'Die Werte des Magiers bestimmen, welche Kräfte erlaubt sind, wie hoch die Kraft sein darf und welche Würfelpools beim Ritual zur Verfügung stehen.') + `
     <div class="card">
@@ -199,7 +228,7 @@
       <div style="margin-top:16px" class="grid g5">
         ${SR.CATEGORIES.map(c => `<div class="field"><label>${c.de}</label><select data-spirit="${c.id}">${spiritOpts(m.spirits[c.id])}</select></div>`).join('')}
       </div>
-      ${SR.TRADITIONS[m.tradition].src === 'SGR' ? '<div class="note info">Vorbelegung für Traditionen aus dem Straßengrimoire – bitte mit dem Buch abgleichen. Die Zuordnung ist frei änderbar.</div>' : ''}
+      ${SR.TRADITIONS[m.tradition].verified === false ? '<div class="note info">Die Zuordnung dieser Tradition ist noch nicht aus dem Buch geprüft – bitte abgleichen. Sie ist frei änderbar.</div>' : ''}
     </div>
     <div class="card">
       <h2>Magische Werte</h2>
@@ -223,6 +252,30 @@
     </div>`;
   };
 
+  function typeCard() {
+    const types = tradTypes(), cur = allyType(), sp = SR.SPIRITS[cur], d = mods();
+    const opts = types.map(t => `<option value="${t}" ${cur === t ? 'selected' : ''}>${SR.SPIRITS[t].de}${SR.SPIRITS[t].verified ? '' : ' (ungeprüft)'}</option>`).join('');
+    const keys = [['K', 'KON'], ['G', 'GES'], ['R', 'REA'], ['S', 'STR'], ['W', 'WIL'], ['L', 'LOG'], ['I', 'INT'], ['C', 'CHA']];
+    const fmt = v => v === 0 ? 'Kraft' : `Kraft ${v > 0 ? '+' : '−'} ${Math.abs(v)}`;
+    const manual = state.ally.applyMods && !sp.mods;
+    const sb0 = statBlock();
+    return `<div class="card">
+      <div class="card-head"><h2>Geistertyp</h2>${sp.verified ? '<span class="tag std">aus dem Buch geprüft</span>' : '<span class="tag paid">nicht geprüft</span>'}</div>
+      <p class="sub">Der Verbündete ist ein Geist eines Typs deiner Tradition. Der Typ bestimmt die Attribute; die Kräfte wählst du in Schritt 4.</p>
+      <div class="grid g2">
+        <div class="field"><label>Geistertyp</label><select id="allyType">${opts}</select></div>
+        <div class="field" style="align-self:end;padding-bottom:9px">${checkField('ally.applyMods', 'Attributsmodifikatoren des Geistertyps anwenden')}</div>
+      </div>
+      <div class="stat-row" style="grid-template-columns:repeat(8,minmax(0,1fr));margin-top:14px">
+        ${keys.map(([k, l]) => `<div class="stat"><div class="k">${l}</div><div class="v" style="font-size:12.5px;padding-top:3px">${fmt(d[k])}</div></div>`).join('')}
+      </div>
+      ${sb0.extra ? `<div class="note info">${esc(sb0.extra)}</div>` : ''}
+      <div class="help" style="margin-top:8px;color:var(--faint);font-size:12px">Magie und Essenz = Kraft, Edge = Edge des Beschwörers · Initiative (Kraft × 2)${d.ini ? ' + ' + d.ini : ''} + 2W6${state.ally.applyMods ? '' : ' (Modifikatoren aus)'}</div>
+      ${manual ? `<div class="note warn">Für diesen Typ sind noch keine Werte hinterlegt. Trage die Modifikatoren aus dem Grundregelwerk ein:</div>
+      <div class="grid g5" style="margin-top:10px">${keys.map(([k, l]) => numField('ally.customMods.' + k, l, { min: -5, max: 9 })).join('')}${numField('ally.customMods.ini', 'Ini-Zuschlag', { min: -5, max: 9 })}</div>` : ''}
+    </div>`;
+  }
+
   views.ally = () => {
     const a = state.ally, f = F(), mx = maxForce();
     return head('Schritt 2', 'Grunddaten & Kraft', 'Die Kraft ist der Kern der Formel: Sie bestimmt alle Attribute, die Zahl der Gratiskräfte und den Großteil der Karmakosten.') + `
@@ -235,6 +288,7 @@
         ${textField('ally.konzept', 'Konzept / Rolle', { ph: 'z. B. Wächter und Ratgeber', cls: 'span2' })}
       </div>
     </div>
+    ${typeCard()}
     <div class="card">
       <div class="card-head"><h2>Kraft</h2><span class="tag">${f} × ${SR.COST.perForce} = <b>${f * SR.COST.perForce}</b> Karma</span></div>
       <p class="sub">Höchstens das Doppelte der Magie (${mx}). Liegt die Kraft über der Magie, wird der Entzug körperlich.</p>
@@ -247,7 +301,7 @@
       </div>
       <div class="grid g3" style="margin-top:16px">
         <div class="field"><label>Gratiskräfte</label><div class="big" style="font-size:18px;font-weight:650">${f}</div><div class="help">1 pro Kraftpunkt</div></div>
-        <div class="field"><label>Attribute & Fertigkeiten</label><div style="font-size:18px;font-weight:650">je ${f}</div><div class="help">alle körperlichen, geistigen und astralen Attribute</div></div>
+        <div class="field"><label>Attribute & Fertigkeiten</label><div style="font-size:18px;font-weight:650">Kraft ± Typ</div><div class="help">Attribute je nach Geistertyp, Fertigkeiten = Kraft</div></div>
         <div class="field"><label>Später erhöhen</label><div style="font-size:18px;font-weight:650">${SR.COST.changeForce} Karma / Punkt</div><div class="help">per Ritual der Wandlung – jetzt nur ${SR.COST.perForce}</div></div>
       </div>
       ${notesFor('ally')}
@@ -284,7 +338,7 @@
       detail = `
       <div class="card">
         <h2>${fo.type === 'inhabitation' ? 'Vorbereitetes Gefäß' : 'Gefäße (optional)'}</h2>
-        <p class="sub">${fo.type === 'inhabitation' ? 'Das Gefäß muss vor dem Ritual existieren. Das Innewohnen dauert ' + F() + ' Tage.' : 'Vorbereitete Gefäße, die der Verbündete in Besitz nehmen kann.'}</p>
+        <p class="sub">${fo.type === 'inhabitation' ? 'Das Gefäß muss vor dem Ritual existieren. Die Bewohnung dauert ' + F() + ' Tage.' : 'Vorbereitete Gefäße, die der Verbündete in Besitz nehmen kann.'}</p>
         <textarea data-path="form.vessel" placeholder="z. B. Eine handgefertigte Bronzestatue eines Wolfes">${esc(fo.vessel)}</textarea>
       </div>`;
     }
@@ -297,13 +351,16 @@
     const c = calc(), f = F();
     const pool = powerPool();
     const selIds = state.powers.map(p => p.id);
-    const ids = Object.keys(pool).sort((a, b) => SR.POWERS[a].de.localeCompare(SR.POWERS[b].de, 'de'));
+    const curT = SR.SPIRITS[allyType()];
+    const rank = (id) => curT.std.includes(id) ? 0 : curT.opt.includes(id) ? 1 : 2;
+    const ids = Object.keys(pool).sort((a, b) => rank(a) - rank(b) || SR.POWERS[a].de.localeCompare(SR.POWERS[b].de, 'de'));
     const used = Math.min(c.nPowers, f);
     const cards = ids.map(id => {
       const def = SR.POWERS[id];
       const idx = selIds.indexOf(id);
       const sel = idx >= 0;
       const srcs = pool[id].map(s => `<span class="tag ${s.kind}">${SR.SPIRITS[s.spirit].de} · ${s.kind === 'std' ? 'Standard' : 'optional'}</span>`).join('') || '<span class="tag">außerhalb der Tradition</span>';
+      const neu = def.src === 'SGR' ? '<span class="tag">neu · Straßengrimoire</span>' : '';
       let detail = '';
       if (sel && def.detail) {
         const val = state.powers[idx].detail || '';
@@ -315,10 +372,10 @@
       return `<div class="power ${sel ? 'sel' : ''}">
         <div class="power-top">
           <label class="check"><input type="checkbox" data-power="${id}" ${sel ? 'checked' : ''}><span class="box"></span></label>
-          <div class="power-name"><span class="n">${def.de}</span><span class="en">${def.en}</span></div>
+          <div class="power-name"><span class="n">${def.de}</span>${def.en ? `<span class="en">${def.en}</span>` : ''}</div>
           ${costTag}
         </div>
-        <div class="power-srcs">${srcs}</div>
+        <div class="power-srcs">${srcs}${neu}</div>
         ${detail}
       </div>`;
     }).join('');
@@ -332,9 +389,9 @@
       <div class="card-head">
         <div>
           <h2>Wählbare Kräfte</h2>
-          <p class="sub" style="margin-bottom:8px">Die ersten ${f} gewählten Kräfte sind gratis – die Reihenfolge der Auswahl zählt.</p>
+          <p class="sub" style="margin-bottom:8px">Die ersten ${f} gewählten Kräfte sind gratis – die Reihenfolge der Auswahl zählt. Kräfte deines Geistertyps (${curT.de}) stehen oben.</p>
         </div>
-        ${checkField('options.allPowers', 'Alle Kräfte zeigen (SL-Erlaubnis)')}
+        ${checkField('options.allPowers', 'Alle Kräfte zeigen (inkl. neue aus dem Straßengrimoire, mit SL-Erlaubnis)')}
       </div>
       <div class="counter" style="margin-bottom:12px">
         <span class="big">${used}/${f}</span><span style="color:var(--muted)">Gratiskräfte genutzt</span>
@@ -348,6 +405,8 @@
 
   views.skills = () => {
     const f = F();
+    const typeSk = (SR.SPIRITS[allyType()].skills || []).filter(n => !SR.BASE_SKILLS.includes(n));
+    const skillSugg = [...typeSk.map(name => ({ name, typ: true })), ...SR.SKILL_SUGGESTIONS.filter(x => !typeSk.includes(x.name))];
     const list = state.skills.map((s, i) => {
       const sug = SR.SKILL_SUGGESTIONS.find(x => x.name === s.name);
       return `<tr><td>${esc(s.name)}${sug && sug.magic ? ' <span class="tag opt">magisch</span>' : ''}</td><td class="num">${f}</td><td class="num">${SR.COST.extraSkill}</td><td style="width:44px"><button class="btn icon danger" data-delskill="${i}" title="Entfernen">✕</button></td></tr>`;
@@ -361,7 +420,8 @@
     <div class="card">
       <div class="card-head"><h2>Zusätzliche Fertigkeiten</h2><span class="tag">je ${SR.COST.extraSkill} Karma</span></div>
       <p class="sub">Fertigkeiten, die der Beschwörer kennt oder die für eine Kraft nötig sind. Magische Fertigkeiten nur, wenn der Beschwörer sie beherrscht.</p>
-      <div class="sugg" style="margin-bottom:14px">${SR.SKILL_SUGGESTIONS.map(s => `<button data-addskill="${esc(s.name)}" ${hasSkill(s.name) ? 'disabled' : ''} title="${esc(s.note || '')}">+ ${esc(s.name)}</button>`).join('')}</div>
+      <div class="sugg" style="margin-bottom:6px">${skillSugg.map(s => `<button data-addskill="${esc(s.name)}" ${hasSkill(s.name) ? 'disabled' : ''} title="${esc(s.note || '')}">${s.typ ? '★' : '+'} ${esc(s.name)}</button>`).join('')}</div>
+      ${typeSk.length ? `<div class="help" style="color:var(--faint);font-size:12px;margin-bottom:12px">★ = typische Fertigkeit eines ${SR.SPIRITS[allyType()].de}s</div>` : '<div style="margin-bottom:12px"></div>'}
       <div class="row-add">
         <div class="field"><label>Eigene Fertigkeit</label><input type="text" id="customSkill" placeholder="z. B. Wissensfertigkeit: Thaumaturgische Geschichte"></div>
         <button class="btn" id="addCustomSkill">Hinzufügen</button>
@@ -393,6 +453,7 @@
         <label class="check" style="padding-bottom:9px"><input type="checkbox" id="spellKnown" checked><span class="box"></span>Beschwörer kennt ihn</label>
         <button class="btn primary" id="addSpell">Hinzufügen</button>
       </div>
+      ${(SR.TRADITIONS[state.mage.tradition].spells || []).length ? `<div style="margin-top:14px"><div class="help" style="color:var(--faint);font-size:12px;margin-bottom:6px">Bevorzugte Zauber der Tradition (${SR.TRADITIONS[state.mage.tradition].de}) – Kategorie und „Beschwörer kennt ihn“ danach in der Tabelle anpassen:</div><div class="sugg">${SR.TRADITIONS[state.mage.tradition].spells.map(n => `<button data-sugspell="${esc(n)}" ${state.spells.some(x => x.name === n) ? 'disabled' : ''}>+ ${esc(n)}</button>`).join('')}</div></div>` : ''}
     </div>
     <div class="card">
       <div class="card-head"><h2>Zauber des Verbündeten</h2><span class="tag">${state.spells.length} Zauber</span></div>
@@ -402,14 +463,16 @@
   };
 
   function statBlock() {
-    const f = F(), m = state.mage;
-    const lim = Math.ceil((4 * f) / 3);
+    const f = F(), m = state.mage, d = mods();
+    const A = (v) => Math.max(1, f + v);
+    const kon = A(d.K);
     return {
-      attrs: [['KON', f], ['GES', f], ['REA', f], ['STR', f], ['WIL', f], ['LOG', f], ['INT', f], ['CHA', f], ['EDG', m.edge], ['MAG', f], ['ESS', f]],
-      iniPhys: `${2 * f} + 2W6`, iniAstral: `${2 * f} + 3W6`,
-      limits: `Körperlich ${lim}, Geistig ${lim}, Sozial ${lim}, Astral ${lim}`,
-      monitor: 8 + Math.ceil(f / 2),
-      armor: state.form.type === 'materialization' ? `Immunität gegen normale Waffen (Härtung ${f * 2})` : '—'
+      attrs: [['KON', kon], ['GES', A(d.G)], ['REA', A(d.R)], ['STR', A(d.S)], ['WIL', A(d.W)], ['LOG', A(d.L)], ['INT', A(d.I)], ['CHA', A(d.C)], ['EDG', m.edge], ['MAG', f], ['ESS', f]],
+      iniPhys: `${2 * f + d.ini} + 2W6`, iniAstral: `${2 * f} + 3W6`,
+      limits: `Kraft (${f}) für alle Proben des Geistes`,
+      monitor: 8 + Math.ceil(kon / 2),
+      armor: state.form.type === 'materialization' ? 'Immunität gegen Normale Waffen (Materialisierung)' : '—',
+      extra: [SR.SPIRITS[allyType()].special, SR.SPIRITS[allyType()].weakness && 'Schwäche: ' + SR.SPIRITS[allyType()].weakness].filter(Boolean).join(' · ')
     };
   }
 
@@ -434,14 +497,15 @@
       { t: 'Entzug (je Probe)', f: `${esc(m.drainLabel)} · Entzugswert = 2 × Erfolge des Geistes (min. 2), ${physical ? '<b style="color:var(--warn)">körperlich</b>' : 'geistig'}`, p: drain, e: `erwarteter Entzug ≈ ${Math.max(2, Math.round((2 * f) / 3))} / ${Math.max(2, Math.round((4 * f) / 3))}` },
       { t: 'Losreißen (falls er sich ungerecht behandelt fühlt)', f: `Geist: Kraft × 2 [Kraft] gegen Binden + Magie [Geistig]`, p: `${f * 2} : ${bind}`, e: 'jeder Nettoerfolg des Geistes befreit ihn' }
     ];
-    if (state.form.type === 'inhabitation') tests.splice(3, 0, { t: 'Innewohnen', f: 'Teil des Rituals, der Beschwörer muss das Gefäß ständig betreuen', p: `${f} Tage`, e: 'Probe kann vom Beschwörer beeinflusst werden' });
+    if (state.form.type === 'inhabitation') tests.splice(3, 0, { t: 'Bewohnung', f: `Kraft × 2 gegen Willenskraft + Intuition des Gefäßes (unbelebt: Objektwiderstand) · dauert ${f} Tage · Magisches Refugium mit Kraft ≥ ${f} · Binden des Beschwörers als Bonus auf eine Seite`, p: `${f * 2}`, e: 'Ergebnis: Wahre Gestalt / Mischgestalt / Fleischgestalt' });
+    if (state.form.type === 'possession') tests.splice(3, 0, { t: 'Besessenheit (je Einsatz)', f: 'Kraft × 2 gegen Intuition + Willenskraft des Gefäßes (unbelebt: Objektwiderstand) · vorbereitetes Gefäß +6 Würfel', p: `${f * 2}`, e: 'Fehlschlag: zurück in den Astralraum' });
 
     const nextF = Math.min(f + 1, maxForce());
     return head('Schritt 7', 'Übersicht & Ritual', 'Der fertige Werteblock, alle Proben des Rituals und der Voraussetzungs-Check auf einen Blick.') + `
     <div class="card">
       <div class="card-head">
         <div><h2 style="font-size:18px">${esc(state.ally.name || 'Unbenannter Verbündeter')}</h2>
-        <p class="sub">Verbündetengeist · Kraft ${f} · ${SR.FORMS[state.form.type].de}${state.ally.ebene ? ' · Heimat: ' + esc(state.ally.ebene) : ''}${m.name ? ' · Meister: ' + esc(m.name) : ''}</p></div>
+        <p class="sub">Verbündetengeist (${SR.SPIRITS[allyType()].de}) · Kraft ${f} · ${SR.FORMS[state.form.type].de}${state.ally.ebene ? ' · Heimat: ' + esc(state.ally.ebene) : ''}${m.name ? ' · Meister: ' + esc(m.name) : ''}</p></div>
         <span class="tag" style="font-size:12px">${c.total} Karma</span>
       </div>
       <div class="stat-row">${sb.attrs.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>
@@ -450,6 +514,7 @@
         <div class="k">Limits</div><div>${sb.limits}</div>
         <div class="k">Zustandsmonitor</div><div>${sb.monitor} Kästchen</div>
         <div class="k">Panzerung</div><div>${sb.armor}</div>
+        ${sb.extra ? `<div class="k">Besonderheiten</div><div>${esc(sb.extra)}</div>` : ''}
         <div class="k">Loyalität</div><div>6 · unbegrenzte Dienste · zählt nicht als gebundener Geist</div>
         <div class="k">Fertigkeiten</div><div>${[...SR.BASE_SKILLS, ...state.skills.map(s => s.name)].map(s => `${esc(s)} ${f}`).join(', ')}</div>
         <div class="k">Kräfte</div><div>${[...SR.BASE_POWERS.map(p => p.de), SR.FORMS[state.form.type].de, ...powerListText()].map(esc).join(', ')}</div>
@@ -484,7 +549,7 @@
 
   // ---------------- Seitenleiste ----------------
   function renderSummary() {
-    const c = calc(), m = state.mage, f = F();
+    const c = calc(), m = state.mage, f = F(), sb = statBlock();
     const rest = m.karma - c.total;
     const pct = m.karma > 0 ? Math.min(100, (c.total / m.karma) * 100) : 100;
     const all = issues().filter(i => i.level === 'err' || i.level === 'warn');
@@ -499,16 +564,16 @@
       <div class="sum-title">Verbündeter</div>
       <div class="mini">
         <div class="mini-name">${esc(state.ally.name || 'Unbenannt')}</div>
-        <div class="mini-meta">Kraft ${f} · ${SR.FORMS[state.form.type].de} · ${SR.TRADITIONS[m.tradition].de}</div>
+        <div class="mini-meta">${SR.SPIRITS[allyType()].de} · Kraft ${f} · ${SR.FORMS[state.form.type].de}</div>
         <div class="mini-stats">
-          <div><div class="k">ATTR</div><div class="v">${f}</div></div>
+          <div><div class="k">KRAFT</div><div class="v">${f}</div></div>
           <div><div class="k">EDGE</div><div class="v">${m.edge}</div></div>
-          <div><div class="k">INI</div><div class="v">${2 * f}+2W</div></div>
-          <div><div class="k">ZM</div><div class="v">${8 + Math.ceil(f / 2)}</div></div>
+          <div><div class="k">INI</div><div class="v">${sb.iniPhys.replace(' + ', '+').replace('2W6', '2W')}</div></div>
+          <div><div class="k">ZM</div><div class="v">${sb.monitor}</div></div>
           <div><div class="k">KRÄFTE</div><div class="v">${SR.BASE_POWERS.length + 1 + state.powers.length}</div></div>
           <div><div class="k">FERT.</div><div class="v">${SR.BASE_SKILLS.length + state.skills.length}</div></div>
           <div><div class="k">ZAUBER</div><div class="v">${state.spells.length}</div></div>
-          <div><div class="k">LIMIT</div><div class="v">${Math.ceil(4 * f / 3)}</div></div>
+          <div><div class="k">LIMIT</div><div class="v">${f}</div></div>
         </div>
       </div>
       <div class="sum-title">Hinweise ${all.length ? `(${all.length})` : ''}</div>
@@ -543,6 +608,7 @@
     if (t.id === 'addCustomSkill') { addSkill($('#customSkill').value); return; }
     if (t.dataset.delskill != null) { state.skills.splice(num(t.dataset.delskill), 1); rerender(); return; }
     if (t.id === 'addSpell') { addSpell(); return; }
+    if (t.dataset.sugspell) { $('#spellName').value = t.dataset.sugspell; addSpell(); return; }
     if (t.dataset.delspell != null) { state.spells.splice(num(t.dataset.delspell), 1); rerender(); return; }
     if (t.id === 'btnNew') { if (confirmReset()) { state = defaultState(); rerender(false); toast('Neuer Verbündeter angelegt'); } return; }
     if (t.id === 'btnSave') { saveFile(); return; }
@@ -620,6 +686,7 @@
     if (t.dataset.path && t.dataset.num) { t.value = getPath(t.dataset.path); return; } // angezeigten Wert normalisieren
     if (t.dataset.path) return;
     if (t.id === 'forceRange') { rerender(); return; }
+    if (t.id === 'allyType') { state.ally.type = t.value; rerender(); return; }
     if (t.id === 'tradSelect') {
       const tr = SR.TRADITIONS[t.value];
       state.mage.tradition = t.value;
@@ -662,7 +729,7 @@
       try {
         const data = JSON.parse(r.result);
         if (!data || data.version !== 1 || !data.ally) throw new Error('Format');
-        state = merge(defaultState(), data);
+        state = migrate(merge(defaultState(), data));
         rerender(false); toast(`„${state.ally.name || 'Verbündeter'}“ geladen`);
       } catch (e) { toast('Datei konnte nicht gelesen werden'); }
     };
@@ -672,7 +739,7 @@
   function exportText() {
     const f = F(), m = state.mage, sb = statBlock(), c = calc();
     const L = [];
-    L.push(`${state.ally.name || 'Unbenannter Verbündeter'} – Verbündetengeist (Kraft ${f})`);
+    L.push(`${state.ally.name || 'Unbenannter Verbündeter'} – Verbündetengeist, ${SR.SPIRITS[allyType()].de} (Kraft ${f})`);
     L.push(`Meister: ${m.name || '—'} · Tradition: ${SR.TRADITIONS[m.tradition].de} · Heimat: ${state.ally.ebene || '—'}`);
     if (state.ally.konzept) L.push(`Konzept: ${state.ally.konzept}`);
     L.push('');
@@ -683,6 +750,7 @@
     L.push(`Limits: ${sb.limits}`);
     L.push(`Zustandsmonitor: ${sb.monitor}`);
     L.push(`Panzerung: ${sb.armor}`);
+    if (sb.extra) L.push(`Besonderheiten: ${sb.extra}`);
     L.push(`Gestalt: ${SR.FORMS[state.form.type].de}` + (state.form.type === 'materialization' ? ` – ${state.form.baseForm || 'Grundgestalt'}${filledForms().length ? '; weitere: ' + filledForms().join('; ') : ''}` : ` – Gefäß: ${state.form.vessel || '—'}`));
     L.push(`Fertigkeiten: ${[...SR.BASE_SKILLS, ...state.skills.map(s => s.name)].map(s => `${s} ${f}`).join(', ')}`);
     L.push(`Kräfte: ${[...SR.BASE_POWERS.map(p => p.de), SR.FORMS[state.form.type].de, ...powerListText()].join(', ')}`);
@@ -708,10 +776,10 @@
     const f = F(), m = state.mage, sb = statBlock(), c = calc();
     $('#printArea').innerHTML = `
       <h1>${esc(state.ally.name || 'Unbenannter Verbündeter')}</h1>
-      <div class="meta">Verbündetengeist · Kraft ${f} · ${SR.FORMS[state.form.type].de} · Meister: ${esc(m.name || '—')} · ${SR.TRADITIONS[m.tradition].de} · Heimat: ${esc(state.ally.ebene || '—')}</div>
+      <div class="meta">Verbündetengeist (${SR.SPIRITS[allyType()].de}) · Kraft ${f} · ${SR.FORMS[state.form.type].de} · Meister: ${esc(m.name || '—')} · ${SR.TRADITIONS[m.tradition].de} · Heimat: ${esc(state.ally.ebene || '—')}</div>
       <table><tr>${sb.attrs.map(([k]) => `<th>${k}</th>`).join('')}</tr><tr>${sb.attrs.map(([, v]) => `<td>${v}</td>`).join('')}</tr></table>
       <h2>Werte</h2>
-      <div>Initiative: ${sb.iniPhys} (körperlich), ${sb.iniAstral} (astral)<br>Limits: ${sb.limits}<br>Zustandsmonitor: ${sb.monitor} · Panzerung: ${esc(sb.armor)}<br>Loyalität 6 · unbegrenzte Dienste</div>
+      <div>Initiative: ${sb.iniPhys} (körperlich), ${sb.iniAstral} (astral)<br>Limits: ${sb.limits}<br>Zustandsmonitor: ${sb.monitor} · Panzerung: ${esc(sb.armor)}${sb.extra ? '<br>Besonderheiten: ' + esc(sb.extra) : ''}<br>Loyalität 6 · unbegrenzte Dienste</div>
       <div class="two">
         <div><h2>Kräfte</h2><ul class="list">${[...SR.BASE_POWERS.map(p => p.de), SR.FORMS[state.form.type].de, ...powerListText()].map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>
         <div><h2>Fertigkeiten (Stufe ${f})</h2><ul class="list">${[...SR.BASE_SKILLS, ...state.skills.map(s => s.name)].map(s => `<li>${esc(s)}</li>`).join('')}</ul>

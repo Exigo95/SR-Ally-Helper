@@ -19,7 +19,7 @@ Unter Windows kannst du auch einfach `start.bat` doppelklicken.
 
 Die App ist eine reine statische Seite, jeder Besucher hat seine eigenen Daten (im Browser gespeichert, `localStorage`).
 
-1. Neues Repository auf GitHub anlegen und diesen Ordner hochladen (Branch `main`)..
+1. Neues Repository auf GitHub anlegen und diesen Ordner hochladen (Branch `main`).
 2. Im Repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. Der mitgelieferte Workflow (`.github/workflows/pages.yml`) veröffentlicht den Ordner `src/` bei jedem Push automatisch.
 4. Die Adresse lautet danach `https://<dein-name>.github.io/<repo-name>/`.
@@ -52,7 +52,8 @@ Außerdem: automatisches Zwischenspeichern, Speichern und Laden als JSON, Werteb
 
 ## Regelannahmen
 
-- Alle körperlichen, geistigen und astralen Attribute sowie alle Fertigkeiten = Kraft; Edge = Edge des Beschwörers.
-- Initiative, Limits und Zustandsmonitor folgen den normalen Geisterregeln (GRW).
-- Die Kräftelisten der GRW-Geister und die Vorbelegungen der Straßengrimoire-Traditionen stammen aus dem Gedächtnis bzw. aus Sekundärquellen. **Bitte mit den Büchern abgleichen.** Die Zuordnung Kategorie → Geistertyp lässt sich in Schritt 1 frei ändern, und „Alle Kräfte zeigen“ schaltet sämtliche Kräfte frei.
-- Die deutschen Begriffe sind an die Pegasus-Übersetzung angelehnt. Der englische Originalbegriff steht jeweils dabei.
+- Der Verbündete ist ein Geist eines **Geistertyps** deiner Tradition. Attribute = Kraft + Modifikator des Typs, Magie und Essenz = Kraft, Edge = Edge des Beschwörers. Die Modifikatoren lassen sich in Schritt 2 abschalten.
+- Alle Fertigkeiten = Kraft, alle Limits = Kraft.
+- **Aus den Büchern geprüft:** alle sechs Geistertypen des Grundregelwerks (Luft, Erde, Feuer, Wasser, Mensch, Tier; S. 302 f.) und die vier neuen aus dem Straßengrimoire (Beschützer, Helfer, Pflanze, Ratgeber; S. 223 f.), jeweils mit Attributen, Initiative, Kräften und Fertigkeiten. Dazu die neuen Geisterkräfte, die Bewohnung und die Besessenheit.
+- **Traditionen:** Voodoo, Straßenhexen, Pfad des Rades, Schwarze Magie, Druidische Tradition, Christliche Theurgie und Chaosmagie stammen aus dem Straßengrimoire (inkl. Entzug und bevorzugten Zaubern als Schnellauswahl). Hermetik, Schamanismus und Buddhismus sind noch nicht geprüft und in der Auswahl entsprechend gekennzeichnet. Die Zuordnung Kategorie → Geistertyp ist in Schritt 1 frei änderbar.
+- Die Regeltexte aus den Büchern sind bewusst nicht enthalten, nur Namen, Werte und Kurzzusammenfassungen.
