@@ -48,7 +48,7 @@ Das Ergebnis liegt danach im Ordner `dist/`.
 | 6 · Zauber | 3 Karma (Beschwörer kennt den Zauber) / 5 Karma (unbekannt) |
 | 7 · Übersicht & Ritual | Werteblock, alle Proben (Formel, Herbeirufen, Binden, Entzug, Losreißen), Voraussetzungs-Check, Rechner für das Ritual der Wandlung (16 Karma je Kraftpunkt) |
 
-Außerdem: automatisches Zwischenspeichern, Speichern und Laden als JSON, Werteblock als Text kopieren, Drucken oder als PDF speichern.
+Außerdem: automatisches Zwischenspeichern, Speichern und Laden als JSON, Werteblock als Text kopieren, **„Link teilen“** (Link mit allen aktuellen Einstellungen, der beim Öffnen den Verbündeten bei der anderen Person lädt; deren bisheriger Stand wird als Backup gesichert), Drucken oder als PDF speichern.
 
 ## Regelannahmen
 

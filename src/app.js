@@ -29,7 +29,8 @@
     };
   }
 
-  let state = load() || defaultState();
+  let linkLoaded = false;
+  let state = loadFromLink() || load() || defaultState();
 
   function load() {
     try {
@@ -38,6 +39,47 @@
       return migrate(merge(defaultState(), JSON.parse(raw)));
     } catch (e) { return null; }
   }
+  // ---------------- Teilen per Link ----------------
+  function encodeState(st) {
+    const bytes = new TextEncoder().encode(JSON.stringify(st));
+    let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function decodeState(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+  function shareUrl() {
+    return location.href.split('#')[0] + '#c=' + encodeState(state);
+  }
+  function loadFromLink() {
+    const m = /^#c=([A-Za-z0-9_-]+)$/.exec(location.hash || '');
+    if (!m) return null;
+    try {
+      const data = decodeState(m[1]);
+      if (!data || !data.ally) throw new Error('Format');
+      // Eigenen Stand sichern, bevor er vom Link ersetzt wird
+      try {
+        const own = localStorage.getItem(STORE_KEY);
+        if (own && own !== JSON.stringify(data)) localStorage.setItem(STORE_KEY + '.backup', own);
+      } catch (_) { /* ignorieren */ }
+      linkLoaded = true;
+      return migrate(merge(defaultState(), data));
+    } catch (e) { return null; }
+    finally { try { history.replaceState(null, '', location.pathname + location.search); } catch (_) { /* ignorieren */ } }
+  }
+  async function copyLink() {
+    const url = shareUrl();
+    try { await navigator.clipboard.writeText(url); toast('Link kopiert – enthält alle aktuellen Einstellungen'); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Link kopiert'); } catch (_) { toast('Kopieren nicht möglich'); }
+      ta.remove();
+    }
+  }
+
   // Ältere Speicherstände auf neue Bezeichnungen umstellen
   function migrate(st) {
     const renameSpirit = { guidance: 'advisor', task: 'helper' };
@@ -614,6 +656,7 @@
     if (t.id === 'btnSave') { saveFile(); return; }
     if (t.id === 'btnLoad') { $('#fileInput').click(); return; }
     if (t.id === 'btnCopy') { copyText(); return; }
+    if (t.id === 'btnLink') { copyLink(); return; }
     if (t.id === 'btnPrint') { printSheet(); return; }
   });
 
@@ -793,4 +836,5 @@
 
   // Start
   render();
+  if (linkLoaded) { persist(); toast('Verbündeter aus Link geladen (dein vorheriger Stand wurde gesichert)'); }
 })();
