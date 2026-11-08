@@ -1,0 +1,28 @@
+{
+  "name": "verbuendeten-schmiede",
+  "productName": "Verbündeten-Schmiede",
+  "version": "1.0.0",
+  "description": "Erstellung von Verbündetengeistern für Shadowrun 5 (Straßengrimoire)",
+  "main": "main.js",
+  "author": "Bartimaeus Pfeiffer",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win portable",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:linux": "electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "de.pfeiffer.verbuendetenschmiede",
+    "productName": "Verbündeten-Schmiede",
+    "files": ["main.js", "src/**/*"],
+    "win": { "target": "portable" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage" }
+  }
+}
