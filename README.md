@@ -19,7 +19,7 @@ Unter Windows kannst du auch einfach `start.bat` doppelklicken.
 
 Die App ist eine reine statische Seite, jeder Besucher hat seine eigenen Daten (im Browser gespeichert, `localStorage`).
 
-1. Neues Repository auf GitHub anlegen und diesen Ordner hochladen (Branch `main`).
+1. Neues Repository auf GitHub anlegen und diesen Ordner hochladen (Branch `main`)..
 2. Im Repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. Der mitgelieferte Workflow (`.github/workflows/pages.yml`) veröffentlicht den Ordner `src/` bei jedem Push automatisch.
 4. Die Adresse lautet danach `https://<dein-name>.github.io/<repo-name>/`.
