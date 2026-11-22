@@ -223,13 +223,25 @@
   ];
 
   function renderSteps() {
-    $('#steps').innerHTML = STEPS.map((s, i) => `
+    const nav = $('#steps'); const sl = nav.scrollLeft;
+    nav.innerHTML = STEPS.map((s, i) => `
       <button class="step ${state.step === s.id ? 'active' : ''}" data-step="${s.id}">
         <span class="step-num">${i + 1}</span>
         <span class="step-label">${s.label}</span>
         <span class="step-dot ${stepStatus(s.id)}"></span>
       </button>`).join('') +
       `<div class="steps-foot">Regelgrundlage: Straßengrimoire (SR5), Abschnitt „Verbündetengeister“. Werte immer mit der Spielleitung abstimmen.<br><br>Deine Daten bleiben nur in diesem Browser gespeichert. Zum Sichern oder Weitergeben: „Speichern“ (JSON).<br><br>Inoffizielles Fan-Werkzeug. Shadowrun ist eine Marke der jeweiligen Rechteinhaber.</div>`;
+    nav.scrollLeft = sl;
+  }
+  // Mobil: aktiven Schritt in der Leiste zentrieren
+  function centerActiveStep() {
+    const nav = $('#steps'), a = nav.querySelector('.step.active');
+    if (a && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2;
+  }
+  function pagerHtml() {
+    const i = STEPS.findIndex(x => x.id === state.step);
+    const prev = STEPS[i - 1], next = STEPS[i + 1];
+    return `<div class="pager">${prev ? `<button class="btn" data-step="${prev.id}">← ${prev.label}</button>` : '<span></span>'}${next ? `<button class="btn primary" data-step="${next.id}">${next.label} →</button>` : ''}</div>`;
   }
 
   // ---------------- Bausteine ----------------
@@ -625,7 +637,7 @@
   // ---------------- Render ----------------
   function render() {
     renderSteps();
-    $('#view').innerHTML = views[state.step]();
+    $('#view').innerHTML = views[state.step]() + pagerHtml();
     renderSummary();
   }
   function refreshSide() {
@@ -634,15 +646,15 @@
     persist();
   }
   function rerender(keepScroll = true) {
-    const v = $('#view'); const y = v.scrollTop;
-    render(); if (keepScroll) v.scrollTop = y; persist();
+    const v = $('#view'); const y = v.scrollTop, wy = window.scrollY;
+    render(); if (keepScroll) { v.scrollTop = y; window.scrollTo(0, wy); } persist();
   }
 
   // ---------------- Ereignisse ----------------
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button, [data-form]');
     if (!t) return;
-    if (t.dataset.step) { state.step = t.dataset.step; $('#view').scrollTop = 0; rerender(false); return; }
+    if (t.dataset.step) { state.step = t.dataset.step; $('#view').scrollTop = 0; window.scrollTo(0, 0); rerender(false); centerActiveStep(); return; }
     if (t.dataset.form) { state.form.type = t.dataset.form; rerender(); return; }
     if (t.id === 'addForm') { state.form.extraForms.push(''); rerender(); return; }
     if (t.dataset.delform != null) { state.form.extraForms.splice(num(t.dataset.delform), 1); rerender(); return; }
@@ -835,6 +847,6 @@
   }
 
   // Start
-  render();
+  render(); centerActiveStep();
   if (linkLoaded) { persist(); toast('Verbündeter aus Link geladen (dein vorheriger Stand wurde gesichert)'); }
 })();

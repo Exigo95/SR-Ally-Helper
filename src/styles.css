@@ -329,6 +329,54 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .g5 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 
+/* Weiter/Zurück */
+.pager { display: flex; justify-content: space-between; gap: 10px; max-width: 980px; margin-top: 8px; }
+
+/* ---------- Smartphone / Tablet hochkant ---------- */
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  body { overflow: auto; font-size: 15px; }
+  .topbar { height: auto; flex-direction: column; align-items: stretch; gap: 10px; padding: 10px 12px; }
+  .brand-sub { display: none; }
+  .brand-title { font-size: 15px; }
+  .actions { overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .actions::-webkit-scrollbar { display: none; }
+  .actions .btn { flex: none; white-space: nowrap; padding: 9px 14px; }
+  .layout { display: block; height: auto; }
+  .steps {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden;
+    padding: 8px 10px; border-right: none; border-bottom: 1px solid var(--line);
+    background: rgba(18,21,29,.96); backdrop-filter: blur(8px);
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .steps::-webkit-scrollbar { display: none; }
+  .step { flex: none; width: auto; margin: 0; padding: 8px 12px; gap: 8px; white-space: nowrap; border-color: var(--line); }
+  .step-label { flex: none; font-size: 13px; }
+  .steps-foot { display: none; }
+  .view { overflow: visible; padding: 18px 14px 28px; }
+  .summary { border-left: none; border-top: 1px solid var(--line); overflow: visible; padding: 18px 14px 60px; }
+  .card { padding: 14px; }
+  .view-head h1 { font-size: 21px; }
+  .g2, .g3, .g4, .options3, .power-grid { grid-template-columns: minmax(0,1fr); }
+  .g5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .span2 { grid-column: auto; }
+  .stat-row { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .stat { border-bottom: 1px solid var(--line); }
+  .kv { grid-template-columns: 1fr; gap: 0 12px; }
+  .kv .k { margin-top: 6px; }
+  .force-wrap { gap: 14px; }
+  .force-num { font-size: 44px; min-width: 56px; }
+  .card-head { flex-wrap: wrap; }
+  input[type=text], input[type=number], select, textarea { font-size: 16px; padding: 10px 12px; } /* verhindert Zoom auf iOS */
+  .btn.small { padding: 7px 12px; }
+  .row-add { flex-wrap: wrap; }
+  .row-add .field { flex: 1 1 100%; min-width: 0; }
+  .card { overflow-wrap: anywhere; }
+  .pager { position: sticky; bottom: 0; padding: 10px 0; background: linear-gradient(transparent, var(--bg) 40%); }
+  .toast { bottom: 76px; max-width: 92vw; text-align: center; border-radius: 14px; }
+}
+
 /* ---------- Druck ---------- */
 @media print {
   body { background: #fff; color: #000; overflow: visible; }
