@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const SR = window.SR;
+  const VERSION = '1.2.0'; // bei jeder Änderung hochzählen (auch in index.html)
   const STORE_KEY = 'verbuendeten-schmiede.v1';
 
   // ---------------- Zustand ----------------
@@ -847,6 +848,11 @@
   }
 
   // Start
+  (function showVersion() {
+    const el = $('#ver'); if (!el) return;
+    el.textContent = 'v' + VERSION + ' · 22.11.2026';
+    if (el.dataset.html !== VERSION) { el.textContent += ' – veraltet, bitte neu laden'; el.classList.add('stale'); }
+  })();
   render(); centerActiveStep();
   if (linkLoaded) { persist(); toast('Verbündeter aus Link geladen (dein vorheriger Stand wurde gesichert)'); }
 })();
